@@ -47,21 +47,23 @@ function manCaptures(state, from, piece) {
   const board = state.board;
   const color = piece[0];
   const results = [];
-  const walk = (at, path, captured, visited) => {
+  // FMJD 4.8: an empty square may be crossed more than once.
+  // The moving piece is temporarily removed from its origin throughout the capture.
+  const occupied = square => square !== from && Boolean(board[square]);
+  const walk = (at, path, captured) => {
     const [r,c] = rc(at);
     let extended = false;
     for (const [dr,dc] of dirs) {
       const victim = sq(r+dr,c+dc);
       const landing = sq(r+2*dr,c+2*dc);
-      if (!victim || !landing || !board[victim] || board[victim][0] === color || captured.includes(victim)) continue;
-      if (board[landing] || visited.has(landing)) continue;
+      if (!victim || !landing || victim === from || !board[victim] || board[victim][0] === color || captured.includes(victim)) continue;
+      if (occupied(landing)) continue;
       extended = true;
-      const nextVisited = new Set(visited); nextVisited.add(landing);
-      walk(landing,[...path,landing],[...captured,victim],nextVisited);
+      walk(landing,[...path,landing],[...captured,victim]);
     }
     if (!extended && captured.length) results.push({from,to:at,path,captured,promotes:isPromotionSquare(at,color)});
   };
-  walk(from,[from],[],new Set([from]));
+  walk(from,[from],[]);
   return results;
 }
 
@@ -69,7 +71,9 @@ function kingCaptures(state, from, piece) {
   const board = state.board;
   const color = piece[0];
   const results = [];
-  const walk = (at,path,captured,visited) => {
+  // FMJD 4.8 permits revisiting empty squares; captured pieces remain blockers
+  // until the complete multiple capture has ended.
+  const walk = (at,path,captured) => {
     const [r,c] = rc(at);
     let extended = false;
     for (const [dr,dc] of dirs) {
@@ -77,7 +81,7 @@ function kingCaptures(state, from, piece) {
       while (true) {
         const n = sq(r+dr*step,c+dc*step);
         if (!n) break;
-        if (board[n]) {
+        if (n !== from && board[n]) {
           if (board[n][0] === color || captured.includes(n)) victim = null;
           else victim = n;
           break;
@@ -88,15 +92,13 @@ function kingCaptures(state, from, piece) {
       for (let landingStep=step+1;;landingStep++) {
         const landing = sq(r+dr*landingStep,c+dc*landingStep);
         if (!landing || board[landing]) break;
-        if (visited.has(landing)) continue;
         extended = true;
-        const nextVisited = new Set(visited); nextVisited.add(landing);
-        walk(landing,[...path,landing],[...captured,victim],nextVisited);
+        walk(landing,[...path,landing],[...captured,victim]);
       }
     }
     if (!extended && captured.length) results.push({from,to:at,path,captured,promotes:false});
   };
-  walk(from,[from],[],new Set([from]));
+  walk(from,[from],[]);
   return results;
 }
 
